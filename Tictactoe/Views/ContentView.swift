@@ -8,181 +8,50 @@
 import SwiftUI
 
 struct ContentView: View {
+    //MARK: --> Properties
+    @StateObject private var viewModel = GameViewModel()
     
-    let columns: [GridItem] = [
-        GridItem(.flexible()),
-        GridItem(.flexible()),
-        GridItem(.flexible())
-    ]
-    
-    @State private var moves: [Move?] = Array(repeating: nil, count: 9)
-    @State private var isGameBoardDisabled = false
-    @State private var alertItem: AlertItem?
-    @State private var showingAlert = false
-    
+    //MARK: --> Body
     var body: some View {
         GeometryReader { geo in
             VStack {
                 Spacer()
-                LazyVGrid(columns: columns, spacing: 2) {
+                LazyVGrid(columns: viewModel.columns, spacing: 2) {
                     ForEach(0..<9) { item in
                         ZStack {
-                            Circle()
-                                .foregroundColor(.purple).opacity(0.7)
-                                .frame(width: geo.size.width / 3 - 10, height: geo.size.width / 3 - 10)
-                            Image(systemName: moves[item]?.idicator ?? "")
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 40, height: 40)
-                                .foregroundColor(.white)
+                            GameSquareView(proxy: geo)
+                            PlayerIndicator(systemImageName: viewModel.moves[item]?.idicator ?? "")
                         }
                         .onTapGesture {
-                            if isSquareOccupied(in: moves, forIndex: item) { return }
-                            moves[item] = Move(player: .human, boardIndex: item)
-                            isGameBoardDisabled = true
-                            // check for win condition or draw
-                            if checkWinCondition(for: .human, in: moves) {
-                                alertItem = AlertContext.humanWin
-                                showingAlert = true
-                                return
-                            }
-                            if checkForDraw(in: moves) {
-                                alertItem = AlertContext.draw
-                                showingAlert = true
-                                return
-                            }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                                let computerPosition = determineComputerMovePosition(in: moves)
-                                moves[computerPosition] = Move(player: .computer, boardIndex: computerPosition)
-                                isGameBoardDisabled = false
-                                
-                                if checkWinCondition(for: .computer, in: moves) {
-                                    alertItem = AlertContext.computerWin
-                                    showingAlert = true
-                                    return
-                                }
-                                if checkForDraw(in: moves) {
-                                    alertItem = AlertContext.draw
-                                    showingAlert = true
-                                    return
-                                }
-                            }
-                            
+                            viewModel.processPlayerMove(for: item)
                         }
                     }
                 }
-                
                 Spacer()
             }
-            .disabled(isGameBoardDisabled)
+            .disabled(viewModel.isGameBoardDisabled)
             .padding()
-            .alert(alertItem?.title ?? Text(""), isPresented: $showingAlert) {
+            .alert(viewModel.alertItem?.title ?? Text(""), isPresented: $viewModel.showingAlert) {
                 Button(role: .cancel) {
                     
                 } label: {
-                    alertItem?.buuttonTitle ?? Text("")
+                    viewModel.alertItem?.buuttonTitle ?? Text("")
                 }
                 Button {
-                    resetGame()
+                    viewModel.resetGame()
                 } label: {
                     Text("Reset game")
                 }
             } message: {
-                alertItem?.message ?? Text("")
-            }
-            
-        }
-    }
-    func isSquareOccupied(in moves: [Move?], forIndex index: Int) -> Bool {
-        return moves.contains(where: { $0?.boardIndex == index})
-    }
-    
-    
-    func determineComputerMovePosition(in moves: [Move?]) -> Int {
-        
-        // If AI can win, then win
-        let winPatterns: Set<Set<Int>> = [
-            [0, 1, 2],
-            [3, 4, 5],
-            [6, 7, 8],
-            [0, 3, 6],
-            [1, 4, 7],
-            [2, 5, 8],
-            [0, 4, 8],
-            [2, 4, 6]
-        ]
-        let computerMoves = moves.compactMap { $0 }.filter { $0.player == .computer }
-        let computerPositions = Set(computerMoves.map { $0.boardIndex })
-        
-        for pattern in winPatterns {
-            let winPositions = pattern.subtracting(computerPositions)
-            
-            if winPositions.count == 1 {
-                let isAvailable = !isSquareOccupied(in: moves, forIndex: winPositions.first!)
-                if isAvailable { return winPositions.first! }
+                viewModel.alertItem?.message ?? Text("")
             }
         }
-        
-        // If AI can't win, then block
-        let humanMoves = moves.compactMap { $0 }.filter { $0.player == .human }
-        let humanPositions = Set(humanMoves.map { $0.boardIndex })
-        
-        for pattern in winPatterns {
-            let winPositions = pattern.subtracting(humanPositions)
-            
-            if winPositions.count == 1 {
-                let isAvailable = !isSquareOccupied(in: moves, forIndex: winPositions.first!)
-                if isAvailable { return winPositions.first! }
-            }
-        }
-        
-        // If AI can't block, then take middle square
-        let centerSquare = 4
-        if !isSquareOccupied(in: moves, forIndex: centerSquare) {
-            return centerSquare
-        }
-        
-        var movePosition = Int.random(in: 0..<9)
-        while isSquareOccupied(in: moves, forIndex: movePosition) {
-            movePosition = Int.random(in: 0..<9)
-        }
-        return movePosition
-    }
-    
-    func checkWinCondition(for player: Player, in moves: [Move?]) -> Bool {
-        let winPatterns: Set<Set<Int>> = [
-            [0, 1, 2],
-            [3, 4, 5],
-            [6, 7, 8],
-            [0, 3, 6],
-            [1, 4, 7],
-            [2, 5, 8],
-            [0, 4, 8],
-            [2, 4, 6]
-        ]
-        let playerMoves = moves.compactMap { $0 }.filter { $0.player == player }
-        let playerPositions = Set(playerMoves.map { $0.boardIndex })
-        
-        for pattern in winPatterns where pattern.isSubset(of: playerPositions){
-           return true
-        }
-        return false
-    }
-    
-    func checkForDraw(in moves: [Move?]) -> Bool {
-        return moves.compactMap { $0 }.count == 9
-    }
-    
-    func resetGame() {
-        moves = Array(repeating: nil, count: 9)
-        isGameBoardDisabled = false
     }
 }
 
 enum Player {
     case human, computer
 }
-
 struct Move {
     let player: Player
     let boardIndex: Int
@@ -191,9 +60,31 @@ struct Move {
         return player == .human ? "xmark" : "circle"
     }
 }
-
+//MARK: --> Preview
 struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
+    }
+}
+//MARK: --> Subviews
+struct GameSquareView: View {
+    var proxy: GeometryProxy
+    var body: some View {
+        Circle()
+            .foregroundColor(.purple).opacity(0.7)
+            .frame(width: proxy.size.width / 3 - 10, height: proxy.size.width / 3 - 10)
+    }
+}
+
+struct PlayerIndicator: View {
+    
+    var systemImageName: String
+    
+    var body: some View {
+        Image(systemName: systemImageName)
+            .resizable()
+            .scaledToFit()
+            .frame(width: 40, height: 40)
+            .foregroundColor(.white)
     }
 }
