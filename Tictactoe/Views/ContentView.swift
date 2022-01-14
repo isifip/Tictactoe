@@ -17,6 +17,8 @@ struct ContentView: View {
     
     @State private var moves: [Move?] = Array(repeating: nil, count: 9)
     @State private var isGameBoardDisabled = false
+    @State private var alertItem: AlertItem?
+    @State private var showingAlert = false
     
     var body: some View {
         GeometryReader { geo in
@@ -40,11 +42,13 @@ struct ContentView: View {
                             isGameBoardDisabled = true
                             // check for win condition or draw
                             if checkWinCondition(for: .human, in: moves) {
-                                print("You won")
+                                alertItem = AlertContext.humanWin
+                                showingAlert = true
                                 return
                             }
                             if checkForDraw(in: moves) {
-                                print("Draw")
+                                alertItem = AlertContext.draw
+                                showingAlert = true
                                 return
                             }
                             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -53,11 +57,13 @@ struct ContentView: View {
                                 isGameBoardDisabled = false
                                 
                                 if checkWinCondition(for: .computer, in: moves) {
-                                    print("Computer wins")
+                                    alertItem = AlertContext.computerWin
+                                    showingAlert = true
                                     return
                                 }
                                 if checkForDraw(in: moves) {
-                                    print("Draw")
+                                    alertItem = AlertContext.draw
+                                    showingAlert = true
                                     return
                                 }
                             }
@@ -65,10 +71,26 @@ struct ContentView: View {
                         }
                     }
                 }
-                .disabled(isGameBoardDisabled)
-                .padding()
+                
                 Spacer()
             }
+            .disabled(isGameBoardDisabled)
+            .padding()
+            .alert(alertItem?.title ?? Text(""), isPresented: $showingAlert) {
+                Button(role: .cancel) {
+                    
+                } label: {
+                    alertItem?.buuttonTitle ?? Text("")
+                }
+                Button {
+                    resetGame()
+                } label: {
+                    Text("Reset game")
+                }
+            } message: {
+                alertItem?.message ?? Text("")
+            }
+            
         }
     }
     func isSquareOccupied(in moves: [Move?], forIndex index: Int) -> Bool {
@@ -104,6 +126,11 @@ struct ContentView: View {
     
     func checkForDraw(in moves: [Move?]) -> Bool {
         return moves.compactMap { $0 }.count == 9
+    }
+    
+    func resetGame() {
+        moves = Array(repeating: nil, count: 9)
+        isGameBoardDisabled = false
     }
 }
 
